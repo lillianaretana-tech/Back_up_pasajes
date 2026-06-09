@@ -1,0 +1,998 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sistema de pasajes backup</title>
+  <style>
+    :root {
+      --ink: #172326;
+      --muted: #607075;
+      --line: #c8d2d5;
+      --panel: #f6f8f8;
+      --teal: #003f4a;
+      --teal-2: #075766;
+      --green: #a9d18e;
+      --paper: #ffffff;
+      --warn: #b45309;
+      --danger: #b91c1c;
+      --shadow: 0 14px 34px rgba(23, 35, 38, .12);
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: #e9eef0;
+    }
+
+    button, input, select {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid #9fb0b5;
+      background: #fff;
+      color: var(--ink);
+      min-height: 36px;
+      border-radius: 6px;
+      padding: 0 12px;
+      cursor: pointer;
+    }
+
+    button:hover { background: #f0f5f6; }
+
+    .primary {
+      background: var(--teal);
+      border-color: var(--teal);
+      color: #fff;
+    }
+
+    .primary:hover { background: var(--teal-2); }
+
+    .danger {
+      border-color: #efb3b3;
+      color: var(--danger);
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 350px minmax(720px, 1fr);
+    }
+
+    .sidebar {
+      background: #f8faf9;
+      border-right: 1px solid var(--line);
+      padding: 18px;
+      overflow: auto;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      background: var(--teal);
+      color: #fff;
+      font-weight: 700;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 20px 0 10px;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0;
+      color: #31454a;
+    }
+
+    label {
+      display: block;
+      margin: 10px 0 5px;
+      font-size: 12px;
+      color: #324a50;
+      font-weight: 700;
+    }
+
+    input, select {
+      width: 100%;
+      height: 36px;
+      border: 1px solid #b8c6ca;
+      border-radius: 6px;
+      padding: 0 9px;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 8px;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .wide { grid-column: 1 / -1; }
+
+    .note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+      margin-top: 8px;
+    }
+
+    .main {
+      padding: 20px;
+      overflow: auto;
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .toolbar-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .period-picker {
+      display: grid;
+      grid-template-columns: 116px 88px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .sheet {
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      padding: 22px;
+      width: min(1120px, 100%);
+      min-height: 680px;
+    }
+
+    .report-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: end;
+      margin-bottom: 6px;
+    }
+
+    .report-title {
+      font-size: 20px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+
+    .period {
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(120px, 1fr));
+      gap: 8px;
+      margin: 10px 0 12px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 9px 10px;
+      background: #fbfdfd;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      margin-bottom: 3px;
+    }
+
+    .metric strong {
+      font-size: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    th, td {
+      border: 1px solid #3f4b4e;
+      padding: 4px 5px;
+      font-size: 11px;
+      line-height: 1.15;
+      overflow-wrap: anywhere;
+    }
+
+    th {
+      background: var(--teal);
+      color: #fff;
+      font-weight: 700;
+      text-align: left;
+    }
+
+    td.num, th.num { text-align: right; }
+    td.center, th.center { text-align: center; }
+
+    .total-row td {
+      background: var(--teal);
+      color: #fff;
+      font-weight: 700;
+      border-color: #1f454c;
+    }
+
+    .total-row td.total-label {
+      background: var(--green);
+      color: #1f3b13;
+      text-align: center;
+    }
+
+    .total-row td.total-value {
+      background: #fff;
+      color: var(--ink);
+      text-align: right;
+      font-weight: 400;
+    }
+
+    .empty {
+      border: 1px dashed #9eb0b5;
+      color: var(--muted);
+      padding: 20px;
+      text-align: center;
+      background: #fbfdfd;
+      margin-top: 14px;
+    }
+
+    .data-list {
+      max-height: 230px;
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+    }
+
+    .data-item {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      padding: 8px;
+      border-bottom: 1px solid #e3e9eb;
+      font-size: 12px;
+    }
+
+    .data-item:last-child { border-bottom: 0; }
+
+    .data-item small {
+      display: block;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    @media (max-width: 960px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+      .sheet { min-width: 860px; }
+    }
+
+    @media print {
+      html, body {
+        width: 100%;
+        background: #fff;
+      }
+      .sidebar, .toolbar { display: none !important; }
+      .app {
+        display: block;
+        min-height: auto;
+        width: 100%;
+      }
+      .main {
+        padding: 0;
+        overflow: visible;
+        width: 100%;
+      }
+      .sheet {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        min-height: auto;
+        box-shadow: none;
+        padding: 0;
+      }
+      .report-head {
+        margin-bottom: 3px;
+      }
+      .summary { display: none; }
+      table {
+        width: 100% !important;
+        table-layout: fixed;
+        page-break-inside: avoid;
+      }
+      th, td {
+        font-size: 7.2px;
+        padding: 2px 3px;
+        line-height: 1.05;
+      }
+      .report-title { font-size: 12px; }
+      .period { font-size: 8px; }
+      @page { size: letter landscape; margin: 5mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">₡</div>
+        <div>
+          <h1>Pasajes backup</h1>
+      <div class="note">Mes de pago con corte 22 a 22</div>
+        </div>
+      </div>
+
+      <h2>Registro</h2>
+      <form id="entryForm">
+        <label for="official">Nombre del funcionario</label>
+        <input id="official" autocomplete="name" value="Juana Diaz Carrero">
+
+        <div class="row">
+          <div>
+            <label for="date">Fecha del traslado</label>
+            <input id="date" type="date" required>
+          </div>
+          <div>
+            <label for="route">Concepto / ruta</label>
+            <input id="route" value="Ultrapark2" required>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="amountOut">Monto ida</label>
+            <input id="amountOut" type="number" min="0" step="0.01" value="580">
+          </div>
+          <div>
+            <label for="amountBack">Monto vuelta</label>
+            <input id="amountBack" type="number" min="0" step="0.01" value="580">
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary" type="submit">+ Agregar</button>
+          <button type="button" id="clearForm">Limpiar</button>
+        </div>
+      </form>
+
+      <h2>Importar</h2>
+      <input id="csvFile" type="file" accept=".csv,text/csv">
+      <div class="note">CSV esperado: nombre, fecha, monto ida, monto vuelta, ruta. Tambien acepta encabezados parecidos.</div>
+
+      <h2>Datos</h2>
+      <div class="actions">
+        <button type="button" id="loadSample">Cargar ejemplo</button>
+        <button type="button" id="clearData" class="danger">Borrar datos</button>
+      </div>
+      <div class="note" id="recordCount">0 registros guardados</div>
+      <div class="data-list" id="dataList"></div>
+    </aside>
+
+    <main class="main">
+      <div class="toolbar">
+        <div class="toolbar-group period-picker" title="Mes en el que se registra el gasto y se realiza el pago">
+          <select id="periodMonth"></select>
+          <input id="periodYear" type="number" min="2020" max="2100">
+        </div>
+        <div class="toolbar-group">
+          <button type="button" id="prevPeriod">‹ Mes</button>
+          <button type="button" id="nextPeriod">Mes ›</button>
+          <button class="primary" type="button" id="exportExcel">Exportar Excel</button>
+          <button class="primary" type="button" id="exportPdf">Generar PDF</button>
+        </div>
+      </div>
+
+      <section class="sheet" id="reportSheet">
+        <div class="report-head">
+          <div>
+            <div class="report-title">Reporte mensual de transporte</div>
+            <div class="period" id="periodLabel">Periodo:</div>
+          </div>
+        </div>
+
+        <div class="summary">
+          <div class="metric"><span>Funcionario principal</span><strong id="mainOfficial">-</strong></div>
+          <div class="metric"><span>Registros</span><strong id="metricRows">0</strong></div>
+          <div class="metric"><span>Total a pagar</span><strong id="metricTotal">₡0</strong></div>
+        </div>
+
+        <div id="reportContainer"></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'pasajesBackup.records.v1';
+    const MONTHS = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const MONTHS_ES = [
+      'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+      'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'
+    ];
+    const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+    const state = {
+      records: loadRecords(),
+      paymentMonth: getDefaultPaymentMonth()
+    };
+
+    const els = {
+      form: document.getElementById('entryForm'),
+      official: document.getElementById('official'),
+      date: document.getElementById('date'),
+      route: document.getElementById('route'),
+      amountOut: document.getElementById('amountOut'),
+      amountBack: document.getElementById('amountBack'),
+      clearForm: document.getElementById('clearForm'),
+      csvFile: document.getElementById('csvFile'),
+      loadSample: document.getElementById('loadSample'),
+      clearData: document.getElementById('clearData'),
+      recordCount: document.getElementById('recordCount'),
+      dataList: document.getElementById('dataList'),
+      periodMonth: document.getElementById('periodMonth'),
+      periodYear: document.getElementById('periodYear'),
+      prevPeriod: document.getElementById('prevPeriod'),
+      nextPeriod: document.getElementById('nextPeriod'),
+      exportExcel: document.getElementById('exportExcel'),
+      exportPdf: document.getElementById('exportPdf'),
+      periodLabel: document.getElementById('periodLabel'),
+      mainOfficial: document.getElementById('mainOfficial'),
+      metricRows: document.getElementById('metricRows'),
+      metricTotal: document.getElementById('metricTotal'),
+      reportContainer: document.getElementById('reportContainer')
+    };
+
+    initialize();
+
+    function initialize() {
+      els.date.value = toInputDate(new Date());
+      MONTHS.forEach((month, index) => {
+        const option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = month;
+        els.periodMonth.appendChild(option);
+      });
+      syncPeriodControls();
+      bindEvents();
+      render();
+    }
+
+    function bindEvents() {
+      els.form.addEventListener('submit', event => {
+        event.preventDefault();
+        addRecord({
+          official: els.official.value,
+          date: els.date.value,
+          amountOut: Number(els.amountOut.value || 0),
+          amountBack: Number(els.amountBack.value || 0),
+          route: els.route.value
+        });
+        els.date.value = toInputDate(addDays(new Date(els.date.value + 'T00:00:00'), 1));
+      });
+
+      els.clearForm.addEventListener('click', () => {
+        els.date.value = toInputDate(new Date());
+        els.amountOut.value = 580;
+        els.amountBack.value = 580;
+        els.route.value = 'Ultrapark2';
+      });
+
+      els.csvFile.addEventListener('change', importCsv);
+      els.loadSample.addEventListener('click', loadSampleData);
+      els.clearData.addEventListener('click', clearAllData);
+      els.prevPeriod.addEventListener('click', () => movePeriod(-1));
+      els.nextPeriod.addEventListener('click', () => movePeriod(1));
+      els.periodMonth.addEventListener('change', updatePeriodFromControls);
+      els.periodYear.addEventListener('change', updatePeriodFromControls);
+      els.exportExcel.addEventListener('click', exportExcel);
+      els.exportPdf.addEventListener('click', () => window.print());
+    }
+
+    function addRecord(record) {
+      if (!record.official || !record.date || !record.route) return;
+      state.records.push({
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+        official: record.official.trim(),
+        date: record.date,
+        amountOut: Number(record.amountOut || 0),
+        amountBack: Number(record.amountBack || 0),
+        route: record.route.trim()
+      });
+      saveRecords();
+      render();
+    }
+
+    function render() {
+      const reportRows = getReportRows();
+      const total = reportRows.reduce((sum, row) => sum + row.subtotal, 0);
+      const mainOfficial = getMostCommon(reportRows.map(row => row.official));
+
+      els.periodLabel.textContent = `Periodo: ${MONTHS[state.paymentMonth.getMonth()]} ${state.paymentMonth.getFullYear()}`;
+      els.mainOfficial.textContent = mainOfficial || '-';
+      els.metricRows.textContent = String(reportRows.length);
+      els.metricTotal.textContent = formatCurrency(total);
+
+      renderReportTable(reportRows, total);
+      renderDataList();
+      els.recordCount.textContent = `${state.records.length} registros guardados`;
+    }
+
+    function renderReportTable(rows, total) {
+      if (!rows.length) {
+        els.reportContainer.innerHTML = '<div class="empty">No hay traslados registrados para este periodo.</div>';
+        return;
+      }
+
+      const colSpan = 6;
+      const firstReportDate = rows[0].dateObj;
+      const lastReportDate = rows[rows.length - 1].dateObj;
+      const totalText = `Total general de ${formatLongDate(firstReportDate)} al ${formatLongDate(lastReportDate)}`;
+
+      const body = rows.map(row => `
+        <tr>
+          <td>${escapeHtml(row.official)}</td>
+          <td>${row.dayName}</td>
+          <td class="center">${formatShortDate(row.dateObj)}</td>
+          <td class="num">${formatCurrency(row.amountOut)}</td>
+          <td class="num">${formatCurrency(row.amountBack)}</td>
+          <td>${escapeHtml(row.route)}</td>
+          <td class="center">${row.week}</td>
+          <td class="num">${formatCurrency(row.subtotal)}</td>
+        </tr>
+      `).join('');
+
+      els.reportContainer.innerHTML = `
+        <table id="reportTable">
+          <colgroup>
+            <col style="width: 24%">
+            <col style="width: 10%">
+            <col style="width: 13%">
+            <col style="width: 12%">
+            <col style="width: 12%">
+            <col style="width: 14%">
+            <col style="width: 8%">
+            <col style="width: 11%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Nombre del funcionario</th>
+              <th>Dia</th>
+              <th>Fecha del traslado</th>
+              <th class="num">Monto (ida)</th>
+              <th class="num">Monto (vuelta)</th>
+              <th>Concepto (Ruta traslado)</th>
+              <th class="center">Semana</th>
+              <th class="num">Subtotal</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${body}
+            <tr class="total-row">
+              <td colspan="${colSpan}">${totalText}</td>
+              <td class="total-label">Total</td>
+              <td class="total-value">${formatCurrency(total)}</td>
+            </tr>
+          </tbody>
+        </table>
+      `;
+    }
+
+    function renderDataList() {
+      const recent = [...state.records].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 80);
+      if (!recent.length) {
+        els.dataList.innerHTML = '<div class="data-item"><div>No hay registros todavia.</div></div>';
+        return;
+      }
+
+      els.dataList.innerHTML = recent.map(record => `
+        <div class="data-item">
+          <div>
+            <strong>${escapeHtml(record.official)}</strong>
+            <small>${record.date} · ${escapeHtml(record.route)} · ${formatCurrency(record.amountOut + record.amountBack)}</small>
+          </div>
+          <button type="button" data-delete="${record.id}" title="Eliminar registro">×</button>
+        </div>
+      `).join('');
+
+      els.dataList.querySelectorAll('[data-delete]').forEach(button => {
+        button.addEventListener('click', () => {
+          state.records = state.records.filter(record => record.id !== button.dataset.delete);
+          saveRecords();
+          render();
+        });
+      });
+    }
+
+    function getReportRows() {
+      const period = getPeriodRange();
+      return state.records
+        .map(record => ({ ...record, dateObj: new Date(record.date + 'T00:00:00') }))
+        .filter(record => record.dateObj >= period.start && record.dateObj <= period.end)
+        .sort((a, b) => a.dateObj - b.dateObj || a.official.localeCompare(b.official))
+        .map(record => ({
+          ...record,
+          dayName: DAYS[record.dateObj.getDay()],
+          week: getWeekNumber(record.dateObj),
+          subtotal: Number(record.amountOut || 0) + Number(record.amountBack || 0)
+        }));
+    }
+
+    function getPeriodRange() {
+      return {
+        start: new Date(state.paymentMonth.getFullYear(), state.paymentMonth.getMonth() - 2, 22),
+        end: new Date(state.paymentMonth.getFullYear(), state.paymentMonth.getMonth() - 1, 22)
+      };
+    }
+
+    function getDefaultPaymentMonth() {
+      const today = new Date();
+      return new Date(today.getFullYear(), today.getMonth(), 1);
+    }
+
+    function syncPeriodControls() {
+      els.periodMonth.value = String(state.paymentMonth.getMonth());
+      els.periodYear.value = String(state.paymentMonth.getFullYear());
+    }
+
+    function updatePeriodFromControls() {
+      state.paymentMonth = new Date(Number(els.periodYear.value), Number(els.periodMonth.value), 1);
+      render();
+    }
+
+    function movePeriod(direction) {
+      state.paymentMonth = addMonths(state.paymentMonth, direction);
+      syncPeriodControls();
+      render();
+    }
+
+    function importCsv(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const rows = parseCsv(String(reader.result || ''));
+        if (rows.length < 2) return;
+
+        const headers = rows[0].map(normalize);
+        const imported = rows.slice(1).map(row => mapCsvRow(headers, row)).filter(Boolean);
+        state.records.push(...imported);
+        saveRecords();
+        render();
+        els.csvFile.value = '';
+      };
+      reader.readAsText(file, 'utf-8');
+    }
+
+    function mapCsvRow(headers, row) {
+      const get = aliases => {
+        for (const alias of aliases) {
+          const index = headers.indexOf(normalize(alias));
+          if (index !== -1) return row[index] || '';
+        }
+        return '';
+      };
+
+      const date = parseDateInput(get(['fecha', 'fecha del traslado', 'dia', 'día', 'timestamp', 'marca temporal']));
+      const amountOut = parseAmount(get(['monto ida', 'ida', 'monto (ida)', 'monto']));
+      const amountBack = parseAmount(get(['monto vuelta', 'vuelta', 'monto (vuelta)']));
+      const route = get(['ruta', 'concepto', 'concepto (ruta traslado)', 'trayecto', 'destino']) || 'Ruta';
+      const official = get(['nombre', 'nombre del funcionario', 'funcionario', 'persona']) || 'Funcionario';
+
+      if (!date) return null;
+      return {
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+        official,
+        date,
+        amountOut,
+        amountBack,
+        route
+      };
+    }
+
+    function parseCsv(text) {
+      const rows = [];
+      let row = [];
+      let value = '';
+      let quoted = false;
+
+      for (let i = 0; i < text.length; i += 1) {
+        const char = text[i];
+        const next = text[i + 1];
+        if (char === '"' && quoted && next === '"') {
+          value += '"';
+          i += 1;
+        } else if (char === '"') {
+          quoted = !quoted;
+        } else if (char === ',' && !quoted) {
+          row.push(value.trim());
+          value = '';
+        } else if ((char === '\n' || char === '\r') && !quoted) {
+          if (char === '\r' && next === '\n') i += 1;
+          row.push(value.trim());
+          if (row.some(cell => cell !== '')) rows.push(row);
+          row = [];
+          value = '';
+        } else {
+          value += char;
+        }
+      }
+
+      row.push(value.trim());
+      if (row.some(cell => cell !== '')) rows.push(row);
+      return rows;
+    }
+
+    function exportExcel() {
+      const filename = `reporte_transporte_${MONTHS[state.paymentMonth.getMonth()]}_${state.paymentMonth.getFullYear()}.xls`;
+      const rows = getReportRows();
+      const total = rows.reduce((sum, row) => sum + row.subtotal, 0);
+      const html = buildExcelHtml(rows, total);
+      downloadBlob(filename, 'application/vnd.ms-excel;charset=utf-8', html);
+    }
+
+    function buildExcelHtml(rows, total) {
+      const titleStyle = 'font-weight:bold;font-size:14pt;text-transform:uppercase;';
+      const periodStyle = 'font-size:9pt;';
+      const headerStyle = 'background:#003f4a;color:#ffffff;font-weight:bold;border:1px solid #3f4b4e;font-size:8pt;';
+      const cellStyle = 'border:1px solid #3f4b4e;font-size:8pt;vertical-align:middle;';
+      const numStyle = `${cellStyle}text-align:right;mso-number-format:"\\\\20A1#,##0";`;
+      const centerStyle = `${cellStyle}text-align:center;`;
+      const totalDarkStyle = 'background:#003f4a;color:#ffffff;font-weight:bold;border:1px solid #3f4b4e;font-size:8pt;text-align:center;';
+      const totalLabelStyle = 'background:#a9d18e;color:#1f3b13;font-weight:bold;border:1px solid #3f4b4e;font-size:8pt;text-align:center;';
+      const totalValueStyle = 'border:1px solid #3f4b4e;font-size:8pt;text-align:right;mso-number-format:"\\\\20A1#,##0";';
+      const firstReportDate = rows[0]?.dateObj;
+      const lastReportDate = rows[rows.length - 1]?.dateObj;
+      const totalText = firstReportDate && lastReportDate
+        ? `Total general de ${formatLongDate(firstReportDate)} al ${formatLongDate(lastReportDate)}`
+        : 'Total general';
+
+      const bodyRows = rows.map(row => `
+        <tr>
+          <td style="${cellStyle}">${escapeHtml(row.official)}</td>
+          <td style="${cellStyle}">${row.dayName}</td>
+          <td style="${centerStyle}">${formatShortDate(row.dateObj)}</td>
+          <td style="${numStyle}">${row.amountOut}</td>
+          <td style="${numStyle}">${row.amountBack}</td>
+          <td style="${cellStyle}">${escapeHtml(row.route)}</td>
+          <td style="${centerStyle}">${row.week}</td>
+          <td style="${numStyle}">${row.subtotal}</td>
+        </tr>
+      `).join('');
+
+      return `
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <!--[if gte mso 9]>
+            <xml>
+              <x:ExcelWorkbook xmlns:x="urn:schemas-microsoft-com:office:excel">
+                <x:ExcelWorksheets>
+                  <x:ExcelWorksheet>
+                    <x:Name>Reporte transporte</x:Name>
+                    <x:WorksheetOptions>
+                      <x:Print>
+                        <x:ValidPrinterInfo/>
+                        <x:HorizontalResolution>600</x:HorizontalResolution>
+                        <x:VerticalResolution>600</x:VerticalResolution>
+                      </x:Print>
+                      <x:FitToPage/>
+                      <x:Landscape/>
+                    </x:WorksheetOptions>
+                  </x:ExcelWorksheet>
+                </x:ExcelWorksheets>
+              </x:ExcelWorkbook>
+            </xml>
+            <![endif]-->
+          </head>
+          <body>
+            <table style="border-collapse:collapse;table-layout:fixed;width:980px;">
+              <col style="width:220px">
+              <col style="width:90px">
+              <col style="width:120px">
+              <col style="width:105px">
+              <col style="width:110px">
+              <col style="width:145px">
+              <col style="width:80px">
+              <col style="width:110px">
+              <tr><td colspan="8" style="${titleStyle}">REPORTE MENSUAL DE TRANSPORTE</td></tr>
+              <tr><td colspan="8" style="${periodStyle}">Periodo: ${MONTHS[state.paymentMonth.getMonth()]} ${state.paymentMonth.getFullYear()}</td></tr>
+              <tr>
+                <th style="${headerStyle}">Nombre del funcionario</th>
+                <th style="${headerStyle}">Dia</th>
+                <th style="${headerStyle}">Fecha del traslado</th>
+                <th style="${headerStyle}">Monto (ida)</th>
+                <th style="${headerStyle}">Monto (vuelta)</th>
+                <th style="${headerStyle}">Concepto (Ruta traslado)</th>
+                <th style="${headerStyle}">Semana</th>
+                <th style="${headerStyle}">Subtotal</th>
+              </tr>
+              ${bodyRows}
+              <tr>
+                <td colspan="6" style="${totalDarkStyle}">${totalText}</td>
+                <td style="${totalLabelStyle}">Total</td>
+                <td style="${totalValueStyle}">${total}</td>
+              </tr>
+            </table>
+          </body>
+        </html>
+      `;
+    }
+
+    function loadSampleData() {
+      const sample = [
+        ['2026-04-24', 'Friday'], ['2026-04-25', 'Saturday'], ['2026-04-27', 'Monday'],
+        ['2026-04-28', 'Tuesday'], ['2026-04-29', 'Wednesday'], ['2026-04-30', 'Thursday'],
+        ['2026-05-01', 'Friday'],
+        ['2026-05-04', 'Monday'], ['2026-05-05', 'Tuesday'], ['2026-05-06', 'Wednesday'],
+        ['2026-05-07', 'Thursday'], ['2026-05-11', 'Monday'], ['2026-05-12', 'Tuesday'],
+        ['2026-05-13', 'Wednesday'], ['2026-05-14', 'Thursday'], ['2026-05-15', 'Friday'],
+        ['2026-05-18', 'Monday'], ['2026-05-19', 'Tuesday'], ['2026-05-20', 'Wednesday'],
+        ['2026-05-21', 'Thursday'], ['2026-05-22', 'Friday']
+      ];
+      state.records = sample.map(([date]) => ({
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+        official: 'Juana Diaz Carrero',
+        date,
+        amountOut: 580,
+        amountBack: 580,
+        route: 'Ultrapark2'
+      }));
+      state.paymentMonth = new Date(2026, 5, 1);
+      syncPeriodControls();
+      saveRecords();
+      render();
+    }
+
+    function clearAllData() {
+      if (!confirm('Esto borra los registros guardados en este navegador.')) return;
+      state.records = [];
+      saveRecords();
+      render();
+    }
+
+    function loadRecords() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      } catch {
+        return [];
+      }
+    }
+
+    function saveRecords() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.records));
+    }
+
+    function downloadBlob(filename, type, content) {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function parseDateInput(value) {
+      if (!value) return '';
+      const trimmed = String(value).trim();
+      const iso = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (iso) return `${iso[1]}-${iso[2].padStart(2, '0')}-${iso[3].padStart(2, '0')}`;
+      const local = trimmed.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/);
+      if (!local) return '';
+      const year = local[3].length === 2 ? `20${local[3]}` : local[3];
+      return `${year}-${local[2].padStart(2, '0')}-${local[1].padStart(2, '0')}`;
+    }
+
+    function parseAmount(value) {
+      if (typeof value === 'number') return value;
+      let clean = String(value || '').replace(/[₡Qq$\s]/g, '');
+      if (clean.includes(',') && !clean.includes('.')) clean = clean.replace(',', '.');
+      clean = clean.replace(/,/g, '');
+      const number = Number(clean);
+      return Number.isFinite(number) ? number : 0;
+    }
+
+    function getWeekNumber(date) {
+      const temp = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      const dayNum = temp.getUTCDay() || 7;
+      temp.setUTCDate(temp.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(temp.getUTCFullYear(), 0, 1));
+      return Math.ceil((((temp - yearStart) / 86400000) + 1) / 7);
+    }
+
+    function getMostCommon(values) {
+      const counts = new Map();
+      values.filter(Boolean).forEach(value => counts.set(value, (counts.get(value) || 0) + 1));
+      return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || '';
+    }
+
+    function addDays(date, days) {
+      const copy = new Date(date);
+      copy.setDate(copy.getDate() + days);
+      return copy;
+    }
+
+    function addMonths(date, months) {
+      return new Date(date.getFullYear(), date.getMonth() + months, date.getDate());
+    }
+
+    function toInputDate(date) {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+
+    function formatCurrency(value) {
+      return `₡${Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+    }
+
+    function formatShortDate(date) {
+      return `${date.getDate()}-${MONTHS[date.getMonth()].slice(0, 3)}-${date.getFullYear()}`;
+    }
+
+    function formatLongDate(date) {
+      return `${date.getDate()} de ${MONTHS_ES[date.getMonth()]} del ${date.getFullYear()}`;
+    }
+
+    function normalize(value) {
+      return String(value || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+  </script>
+</body>
+</html>
