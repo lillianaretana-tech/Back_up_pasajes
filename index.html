@@ -724,8 +724,7 @@ https://docs.google.com/spreadsheets/d/e/2PACX-1vQ2juJmdX3jJvZBAw7i16mB1xvCJ1aKu
     }
 
     async function importGoogleSheetCsv() {
-      const originalUrl = els.sheetCsvUrl.value.trim();
-      const url = toGoogleCsvUrl(originalUrl);
+      const url = toGoogleCsvUrl(els.sheetCsvUrl.value.trim());
       if (!url) {
         alert('El campo de URL esta vacio. Pega la URL publicada de Google Sheets o usa la que viene precargada.');
         return;
