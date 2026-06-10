@@ -1,4 +1,4 @@
-<!doctype html>
+https://docs.google.com/spreadsheets/d/e/2PACX-1vQ2juJmdX3jJvZBAw7i16mB1xvCJ1aKuP0NsyFt63RodCAlCldoMuHkxl_Qvu9Dw5y2167r1hq6DED0/pub?gid=99332961&single=true&output=csv<!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
@@ -400,6 +400,16 @@
       </form>
 
       <h2>Importar</h2>
+      <label for="sheetCsvUrl">URL CSV de Google Sheets</label>
+      <input id="sheetCsvUrl" placeholder="https://docs.google.com/spreadsheets/d/e/2PACX-1vQ2juJmdX3jJvZBAw7i16mB1xvCJ1aKuP0NsyFt63RodCAlCldoMuHkxl_Qvu9Dw5y2167r1hq6DED0/pub?gid=99332961&single=true&output=csv">
+      <div class="actions">
+        <button type="button" id="importSheet" class="primary">Actualizar desde Sheet</button>
+        <button type="button" id="saveSheetUrl">Guardar URL</button>
+        <button type="button" id="useDefaultSheetUrl" class="wide">Usar URL publicada actual</button>
+      </div>
+      <div class="note">Para uso directo, la hoja debe estar publicada o compartida de forma que el enlace CSV pueda leerse.</div>
+
+      <label for="csvFile">Archivo CSV</label>
       <input id="csvFile" type="file" accept=".csv,text/csv">
       <div class="note">CSV esperado: nombre, fecha, monto ida, monto vuelta, ruta. Tambien acepta encabezados parecidos.</div>
 
@@ -447,6 +457,8 @@
 
   <script>
     const STORAGE_KEY = 'pasajesBackup.records.v1';
+    const SHEET_URL_KEY = 'pasajesBackup.sheetUrl.v1';
+    const DEFAULT_SHEET_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ2juJmdX3jJvZBAw7i16mB1xvCJ1aKuP0NsyFt63RodCAlCldoMuHkxl_Qvu9Dw5y2167r1hq6DED0/pub?gid=99332961&single=true&output=csv';
     const MONTHS = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
@@ -471,6 +483,10 @@
       amountBack: document.getElementById('amountBack'),
       clearForm: document.getElementById('clearForm'),
       csvFile: document.getElementById('csvFile'),
+      sheetCsvUrl: document.getElementById('sheetCsvUrl'),
+      importSheet: document.getElementById('importSheet'),
+      saveSheetUrl: document.getElementById('saveSheetUrl'),
+      useDefaultSheetUrl: document.getElementById('useDefaultSheetUrl'),
       loadSample: document.getElementById('loadSample'),
       clearData: document.getElementById('clearData'),
       recordCount: document.getElementById('recordCount'),
@@ -492,6 +508,7 @@
 
     function initialize() {
       els.date.value = toInputDate(new Date());
+      els.sheetCsvUrl.value = localStorage.getItem(SHEET_URL_KEY) || DEFAULT_SHEET_CSV_URL;
       MONTHS.forEach((month, index) => {
         const option = document.createElement('option');
         option.value = String(index);
@@ -524,6 +541,9 @@
       });
 
       els.csvFile.addEventListener('change', importCsv);
+      els.importSheet.addEventListener('click', importGoogleSheetCsv);
+      els.saveSheetUrl.addEventListener('click', saveSheetUrl);
+      els.useDefaultSheetUrl.addEventListener('click', useDefaultSheetUrl);
       els.loadSample.addEventListener('click', loadSampleData);
       els.clearData.addEventListener('click', clearAllData);
       els.prevPeriod.addEventListener('click', () => movePeriod(-1));
@@ -697,17 +717,192 @@
 
       const reader = new FileReader();
       reader.onload = () => {
-        const rows = parseCsv(String(reader.result || ''));
-        if (rows.length < 2) return;
-
-        const headers = rows[0].map(normalize);
-        const imported = rows.slice(1).map(row => mapCsvRow(headers, row)).filter(Boolean);
-        state.records.push(...imported);
-        saveRecords();
-        render();
+        importCsvText(String(reader.result || ''));
         els.csvFile.value = '';
       };
       reader.readAsText(file, 'utf-8');
+    }
+
+    async function importGoogleSheetCsv() {
+      const originalUrl = els.sheetCsvUrl.value.trim();
+      const url = toGoogleCsvUrl(originalUrl);
+      if (!url) {
+        alert('El campo de URL esta vacio. Pega la URL publicada de Google Sheets o usa la que viene precargada.');
+        return;
+      }
+
+      try {
+        els.importSheet.disabled = true;
+        els.importSheet.textContent = 'Actualizando...';
+        const count = isGoogleSheetsUrl(url)
+          ? await importGoogleSheetGviz(url)
+          : await importCsvFromFetch(url);
+        els.sheetCsvUrl.value = url;
+        localStorage.setItem(SHEET_URL_KEY, url);
+        alert(`Datos actualizados desde Google Sheets: ${count} registros importados.`);
+      } catch (error) {
+        alert('No se pudo leer la hoja desde esta pagina. Si estas abriendo el HTML como archivo local, usa el boton de archivo CSV o publica el HTML en una pagina web.');
+      } finally {
+        els.importSheet.disabled = false;
+        els.importSheet.textContent = 'Actualizar desde Sheet';
+      }
+    }
+
+    async function importCsvFromFetch(url) {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const text = await response.text();
+      return importCsvText(text, true);
+    }
+
+    async function importGoogleSheetGviz(url) {
+      const response = await loadGoogleVisualizationData(url);
+      const table = response && response.table;
+      if (!table || !Array.isArray(table.cols) || !Array.isArray(table.rows)) {
+        throw new Error('Respuesta de Google Sheets invalida.');
+      }
+
+      const headers = table.cols.map((column, index) => column.label || column.id || `Columna ${index + 1}`);
+      const rows = table.rows.map(row => {
+        const cells = row.c || [];
+        return headers.map((_, index) => {
+          const cell = cells[index];
+          if (!cell) return '';
+          return cell.f !== undefined ? cell.f : cell.v;
+        });
+      });
+
+      return importRows(headers, rows, true);
+    }
+
+    function loadGoogleVisualizationData(url) {
+      return new Promise((resolve, reject) => {
+        const gvizUrl = toGoogleGvizUrl(url);
+        if (!gvizUrl) {
+          reject(new Error('No se pudo convertir la URL a Google Visualization.'));
+          return;
+        }
+
+        const callbackName = `__pasajesSheet_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+        const previousGoogle = window.google;
+        const cleanup = script => {
+          delete window[callbackName];
+          if (previousGoogle === undefined) {
+            delete window.google;
+          } else {
+            window.google = previousGoogle;
+          }
+          if (script && script.parentNode) script.parentNode.removeChild(script);
+        };
+
+        window[callbackName] = data => {
+          cleanup(script);
+          resolve(data);
+        };
+
+        window.google = window.google || {};
+        window.google.visualization = window.google.visualization || {};
+        window.google.visualization.Query = window.google.visualization.Query || {};
+        window.google.visualization.Query.setResponse = data => {
+          cleanup(script);
+          resolve(data);
+        };
+
+        const script = document.createElement('script');
+        script.src = `${gvizUrl}&tqx=${encodeURIComponent(`out:json;responseHandler:${callbackName}`)}`;
+        script.onerror = () => {
+          cleanup(script);
+          reject(new Error('No se pudo cargar Google Sheets.'));
+        };
+        document.head.appendChild(script);
+      });
+    }
+
+    function saveSheetUrl() {
+      const url = toGoogleCsvUrl(els.sheetCsvUrl.value.trim());
+      els.sheetCsvUrl.value = url;
+      localStorage.setItem(SHEET_URL_KEY, url);
+      alert('URL guardada en este navegador.');
+    }
+
+    function useDefaultSheetUrl() {
+      els.sheetCsvUrl.value = DEFAULT_SHEET_CSV_URL;
+      localStorage.setItem(SHEET_URL_KEY, DEFAULT_SHEET_CSV_URL);
+    }
+
+    function importCsvText(text, replaceExisting = false) {
+      const rows = parseCsv(text);
+      if (rows.length < 2) return 0;
+
+      return importRows(rows[0], rows.slice(1), replaceExisting);
+    }
+
+    function importRows(headerRow, dataRows, replaceExisting = false) {
+      const headers = headerRow.map(normalize);
+      const imported = dataRows.map(row => mapCsvRow(headers, row)).filter(Boolean);
+      state.records = replaceExisting ? imported : mergeRecords(state.records, imported);
+      saveRecords();
+      render();
+      return imported.length;
+    }
+
+    function mergeRecords(current, incoming) {
+      const seen = new Set(current.map(record => recordKey(record)));
+      const merged = [...current];
+      incoming.forEach(record => {
+        const key = recordKey(record);
+        if (!seen.has(key)) {
+          seen.add(key);
+          merged.push(record);
+        }
+      });
+      return merged;
+    }
+
+    function recordKey(record) {
+      return [
+        normalize(record.official),
+        record.date,
+        normalize(record.route),
+        Number(record.amountOut || 0),
+        Number(record.amountBack || 0)
+      ].join('|');
+    }
+
+    function toGoogleCsvUrl(input) {
+      if (!input) return '';
+      if (!input.includes('docs.google.com/spreadsheets')) return input;
+      if (input.includes('/pub') && input.includes('output=csv')) return input;
+
+      const idMatch = input.match(/\/spreadsheets\/d\/([^/]+)/);
+      if (!idMatch) return input;
+
+      const gidMatch = input.match(/[?&#]gid=(\d+)/);
+      const gid = gidMatch ? gidMatch[1] : '0';
+      return `https://docs.google.com/spreadsheets/d/${idMatch[1]}/export?format=csv&gid=${gid}`;
+    }
+
+    function toGoogleGvizUrl(input) {
+      if (!isGoogleSheetsUrl(input)) return '';
+
+      const publishedMatch = input.match(/\/spreadsheets\/d\/e\/([^/]+)/);
+      const normalMatch = input.match(/\/spreadsheets\/d\/([^/]+)/);
+      const gidMatch = input.match(/[?&#]gid=(\d+)/);
+      const gid = gidMatch ? gidMatch[1] : '0';
+
+      if (publishedMatch) {
+        return `https://docs.google.com/spreadsheets/d/e/${publishedMatch[1]}/gviz/tq?gid=${gid}`;
+      }
+
+      if (normalMatch) {
+        return `https://docs.google.com/spreadsheets/d/${normalMatch[1]}/gviz/tq?gid=${gid}`;
+      }
+
+      return '';
+    }
+
+    function isGoogleSheetsUrl(input) {
+      return String(input || '').includes('docs.google.com/spreadsheets');
     }
 
     function mapCsvRow(headers, row) {
